@@ -86,3 +86,4 @@ bash run_test_cifar10.sh
 bash run_test_cifar100.sh
 bash run_test_imagenet.sh
 ```
+**We will release the training source code when the paper is accepted.**
