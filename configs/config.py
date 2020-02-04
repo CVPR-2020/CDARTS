@@ -48,8 +48,10 @@ class SearchConfig(BaseConfig):
         parser.add_argument('--train_dir', type=str, default='data/imagenet/train', help='')
         parser.add_argument('--val_dir', type=str, default='data/imagenet/train', help='')
         parser.add_argument('--test_dir', type=str, default='data/imagenet/val', help='')
+        parser.add_argument('--param_pool_path', type=str, default=None, help='')
         parser.add_argument('--input_channels', type=int, default=3)
         parser.add_argument('--init_channels', type=int, default=16)
+        parser.add_argument('--stem_multiplier', type=int, default=3)
         parser.add_argument('--n_classes', type=int, default=10)
         parser.add_argument('--batch_size', type=int, default=128, help='batch size')
         parser.add_argument('--print_freq', type=int, default=50, help='print frequency')
@@ -57,7 +59,7 @@ class SearchConfig(BaseConfig):
         parser.add_argument('--workers', type=int, default=4, help='# of workers')
         parser.add_argument('--gpus', default='0', help='gpu device ids separated by comma. '
                             '`all` indicates use all gpus.')
-        parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
+        parser.add_argument('--sample_ratio', type=float, default=0.2, help='imagenet sample ratio')
         parser.add_argument('--resume', action='store_true', default=False, help='resnet stem(pretrain)')
 
         ########### learning rate ############
@@ -79,17 +81,16 @@ class SearchConfig(BaseConfig):
         parser.add_argument('--cells_num', type=int, default=3, help='cells num of one layer')
         parser.add_argument('--pretrain_epochs', type=int, default=5, help='# of training epochs')
         parser.add_argument('--pretrain_decay', type=int, default=5, help='pretrain epochs')
+        parser.add_argument('--random_times', type=int, default=10, help='# of training epochs')
+        parser.add_argument('--random_epochs', type=int, default=3, help='# of training epochs')
         parser.add_argument('--search_iter', type=int, default=5, help='times of search')
         parser.add_argument('--search_iter_epochs', type=int, default=5, help='# of training epochs')
         parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
         parser.add_argument('--one_stage', action='store_true', default=False, help='one_stage search')
         parser.add_argument('--same_structure', action='store_true', default=False, help='same_structure search and retrain')
         parser.add_argument('--clean_arch', action='store_true', default=False, help='clean archs each epoch')
-        parser.add_argument('--retrain_setting', type=int, default=0, help='0 retrain_1, 1 retrain_2, 2 retrain_3')
-        parser.add_argument('--retrain_update_w', action='store_true', default=False, help='whether to update w param during retrain')
-        parser.add_argument('--sample_ratio', type=float, default=0.2, help='imagenet sample ratio')
         parser.add_argument('--sync_param', action='store_true', default=False, help='whether to sync param')
-        parser.add_argument('--ensemble', action='store_true', default=False, help='whether to ensemble')
+        parser.add_argument('--ensemble_sum', action='store_true', default=False, help='ensemble sum or concat')
         parser.add_argument('--ensemble_param', action='store_true', default=False, help='whether to learn ensemble params')
         parser.add_argument('--use_beta', action='store_true', default=False, help='whether to use beta arch param')
         parser.add_argument('--bn_affine', action='store_true', default=False, help='main bn affine')
@@ -101,11 +102,14 @@ class SearchConfig(BaseConfig):
         parser.add_argument('--repeat_cell', action='store_true', default=False, help='use repeat cell')
         parser.add_argument('--fix_head', action='store_true', default=False, help='whether to fix head')
         parser.add_argument('--share_fc', action='store_true', default=False, help='whether to share fc')
-        parser.add_argument('--drop_or_reg', action='store_true', default=False, help='use dropout or regular')
         parser.add_argument('--nasnet_lr', type=float, default=0.1, help='lr of nasnet')
         parser.add_argument('--nasnet_warmup', type=int, default=5, help='warm up of nasnet')
         parser.add_argument('--loss_alpha', type=float, default=1, help='loss alpha')
         parser.add_argument('--loss_T', type=float, default=2, help='loss T')
+        parser.add_argument('--interactive_type', type=int, default=0, help='0 kl 1 cosine 2 mse 3 sl1')
+        parser.add_argument('--gumbel_sample', action='store_true', default=False, help='whether to use gumbel sample')
+        parser.add_argument('--sample_pretrain', action='store_true', default=False, help='sample_pretrain')
+
 
         ########### data augument ############
         parser.add_argument('--aux_weight', type=float, default=0.4, help='auxiliary loss weight')
@@ -146,7 +150,7 @@ class AugmentConfig(BaseConfig):
 
         parser.add_argument('--data_dir', type=str, default='data/cifar', help='cifar dataset')
         parser.add_argument('--train_dir', type=str, default='data/imagenet/train', help='')
-        parser.add_argument('--test_dir', type=str, default='data/imagenet/val', help='cell genotype')
+        parser.add_argument('--test_dir', type=str, default='data/imagenet/val', help='')
         parser.add_argument('--cell_file', type=str, default='cells/cifar_genotype.json', help='')
         parser.add_argument('--resume', action='store_true', default=False, help='resnet stem(pretrain)')
 
@@ -159,13 +163,14 @@ class AugmentConfig(BaseConfig):
         parser.add_argument('--layer_num', type=int, default=3, help='layer need to be replaced')
         parser.add_argument('--cells_num', type=int, default=3, help='cells num of one layer')
         parser.add_argument('--same_structure', action='store_true', default=False, help='same_structure search and retrain')
-        parser.add_argument('--ensemble', action='store_true', default=False, help='whether to ensemble')
+        parser.add_argument('--ensemble_sum', action='store_true', default=False, help='whether to ensemble')
         parser.add_argument('--ensemble_param', action='store_true', default=False, help='whether to learn ensemble params')
         parser.add_argument('--use_beta', action='store_true', default=False, help='whether to use beta arch param')
         parser.add_argument('--bn_affine', action='store_true', default=False, help='main bn affine')
         parser.add_argument('--repeat_cell', action='store_true', default=False, help='use repeat cell')
         parser.add_argument('--fix_head', action='store_true', default=False, help='whether to fix head')
         parser.add_argument('--share_fc', action='store_true', default=False, help='whether to share fc')
+        parser.add_argument('--sample_pretrain', action='store_true', default=False, help='sample_pretrain')
 
         parser.add_argument('--use_aa', action='store_true', default=False, help='whether to use aa')
         parser.add_argument('--mixup_alpha', default=0., type=float,
@@ -189,6 +194,7 @@ class AugmentConfig(BaseConfig):
         parser.add_argument('--workers', type=int, default=4, help='# of workers')
         parser.add_argument('--aux_weight', type=float, default=0.4, help='auxiliary loss weight')
         parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
+        parser.add_argument('--sample_archs', type=int, default=1, help='sample arch num')
         parser.add_argument('--label_smooth', type=float, default=0.1, help='label smoothing')
         parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path prob')
 

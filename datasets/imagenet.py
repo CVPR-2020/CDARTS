@@ -32,10 +32,10 @@ def get_search_datasets(config):
 
     num_train = len(train_data)
     indices = list(range(num_train))
-    split = int(np.floor(config.train_portion * num_train))
+    split_mid = int(np.floor(0.5 * num_train))
 
-    train_sampler = SubsetDistributedSampler(train_data, indices[:split])
-    valid_sampler = SubsetDistributedSampler(train_data, indices[split:num_train])
+    train_sampler = SubsetDistributedSampler(train_data, indices[:split_mid])
+    valid_sampler = SubsetDistributedSampler(train_data, indices[split_mid:num_train])
 
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_size=config.batch_size,

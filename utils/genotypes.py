@@ -6,6 +6,7 @@
 from collections import namedtuple
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from models import ops
 from models.ops import PRIMITIVES
 
@@ -96,6 +97,61 @@ def parse(alpha, beta, k):
             prim = PRIMITIVES[prim_idx]
             node_gene.append((prim, edge_idx.item()))
             node_idx.append((edge_idx.item(), prim_idx.item()))
+
+        gene.append(node_gene)
+        connect_idx.append(node_idx)
+
+    return gene, connect_idx
+
+def parse_gumbel(alpha, beta, k):
+    """
+    parse continuous alpha to discrete gene.
+    alpha is ParameterList:
+    ParameterList [
+        Parameter(n_edges1, n_ops),
+        Parameter(n_edges2, n_ops),
+        ...
+    ]
+
+    beta is ParameterList:
+    ParameterList [
+        Parameter(n_edges1),
+        Parameter(n_edges2),
+        ...
+    ]
+
+    gene is list:
+    [
+        [('node1_ops_1', node_idx), ..., ('node1_ops_k', node_idx)],
+        [('node2_ops_1', node_idx), ..., ('node2_ops_k', node_idx)],
+        ...
+    ]
+    each node has two edges (k=2) in CNN.
+    """
+
+    gene = []
+    assert PRIMITIVES[-1] == 'none' # assume last PRIMITIVE is 'none'
+
+    # 1) Convert the mixed op to discrete edge (single op) by choosing top-1 weight edge
+    # 2) Choose top-k edges per node by edge score (top-1 weight in edge)
+    # output the connect idx[(node_idx, connect_idx, op_idx).... () ()]
+    connect_idx = []
+    for edges, w in zip(alpha, beta):
+        # edges: Tensor(n_edges, n_ops)
+        discrete_a = F.gumbel_softmax(edges[:, :-1].reshape(-1), tau=1, hard=True)
+        for i in range(k-1):
+            discrete_a = discrete_a + F.gumbel_softmax(edges[:, :-1].reshape(-1), tau=1, hard=True)
+        discrete_a = discrete_a.reshape(-1, len(PRIMITIVES)-1)
+        reserved_edge = (discrete_a>0).nonzero()
+        
+        node_gene = []
+        node_idx = []
+        for i in range(reserved_edge.shape[0]):
+            edge_idx = reserved_edge[i][0].item()
+            prim_idx = reserved_edge[i][1].item()
+            prim = PRIMITIVES[prim_idx]
+            node_gene.append((prim, edge_idx))
+            node_idx.append((edge_idx, prim_idx))
 
         gene.append(node_gene)
         connect_idx.append(node_idx)

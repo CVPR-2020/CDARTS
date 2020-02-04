@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+mse = nn.MSELoss()
+smooth_l1 = nn.SmoothL1Loss()
+
 class CrossEntropyLabelSmooth(nn.Module):
 
     def __init__(self, num_classes, epsilon):
@@ -17,7 +21,16 @@ class CrossEntropyLabelSmooth(nn.Module):
         loss = (-targets * log_probs).mean(0).sum()
         return loss
 
-def loss_interactive(outputs, labels, teacher_outputs, T=2):
-    # distill_loss = nn.KLDivLoss()(F.log_softmax(outputs/T, dim=1), F.softmax(teacher_outputs/T, dim=1)) * (alpha * T * T) + F.cross_entropy(outputs, labels) * (1. - alpha) 
-    KL_loss = nn.KLDivLoss()(F.log_softmax(outputs/T, dim=1), F.softmax(teacher_outputs/T, dim=1)) * (T * T) 
-    return KL_loss
+def Loss_interactive(outputs, teacher_outputs, T=2, interactive_type=0):
+    if interactive_type==0:
+        loss = nn.KLDivLoss()(F.log_softmax(outputs/T, dim=1), F.softmax(teacher_outputs/T, dim=1))
+    elif interactive_type==1:
+        # Cosine distance
+        loss = -torch.mean(cos(outputs, teacher_outputs))
+    elif interactive_type==2:
+        loss = mse(outputs, teacher_outputs)
+    elif interactive_type == 3:
+        loss = smooth_l1(outputs, teacher_outputs)
+    else:
+        raise Exception("Wrong interactive type!")
+    return loss * (T * T) 

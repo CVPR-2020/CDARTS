@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from models import ops
 from models.augment_cells import AugmentCell
 
 class ModelTest(nn.Module):

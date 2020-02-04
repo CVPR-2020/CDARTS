@@ -50,7 +50,7 @@ def param_size(model):
     """ Compute parameter size in MB """
     n_params = sum(
         np.prod(v.size()) for k, v in model.named_parameters() if not k.startswith('aux_head'))
-    return n_params / 1024. / 1024.
+    return n_params / 1e6
 
 def print_speed(i, i_time, n, logger):
     """print_speed(index, index_time, total_iteration)"""

@@ -1,29 +1,13 @@
 """ Operations """
 import torch
 import torch.nn as nn
-from configs.config import AugmentConfig
 # from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 # BatchNorm2d = SynchronizedBatchNorm2d
 # from apex.parallel import SyncBatchNorm
 # BatchNorm2d = SyncBatchNorm
 BatchNorm2d = nn.BatchNorm2d
-config = AugmentConfig()
 
-bak_ops_bn = {
-    'none': lambda C, stride, affine: Zero(stride),
-    'avg_pool_3x3': lambda C, stride, affine: PoolBN('avg', C, 3, stride, 1, affine=affine),
-    'max_pool_3x3': lambda C, stride, affine: PoolBN('max', C, 3, stride, 1, affine=affine),
-    'skip_connect': lambda C, stride, affine: \
-        Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine),
-    'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
-    'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
-    'sep_conv_7x7': lambda C, stride, affine: SepConv(C, C, 7, stride, 3, affine=affine),
-    'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine), # 5x5
-    'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 4, 2, affine=affine), # 9x9
-    'conv_7x1_1x7': lambda C, stride, affine: FacConv(C, C, 7, stride, 3, affine=affine)
-}
-
-bak_ops = {
+OPS = {
     'none': lambda C, stride, affine: Zero(stride),
     'avg_pool_3x3': lambda C, stride, affine: Pool('avg', C, 3, stride, 1, affine=affine),
     'max_pool_3x3': lambda C, stride, affine: Pool('max', C, 3, stride, 1, affine=affine),
@@ -36,11 +20,6 @@ bak_ops = {
     'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 4, 2, affine=affine), # 9x9
     'conv_7x1_1x7': lambda C, stride, affine: FacConv(C, C, 7, stride, 3, affine=affine)
 }
-
-if config.dataset == 'cifar10':
-    OPS = bak_ops_bn
-else:
-    OPS = bak_ops
 
 PRIMITIVES = [
     'max_pool_3x3',
@@ -272,9 +251,10 @@ def channel_shuffle(x, groups):
 
 class MixedOp(nn.Module):
     """ Mixed operation """
-    def __init__(self, C, stride, k=4):
+    def __init__(self, C, stride, is_slim=False, k=4):
         super().__init__()
         self._ops = nn.ModuleList()
+        self.is_slim = is_slim
 
         for primitive in PRIMITIVES:
             op = OPS[primitive](C, stride, False)
@@ -282,4 +262,11 @@ class MixedOp(nn.Module):
 
 
     def forward(self, x, weights):
-        return sum(w * op(x) for w, op in zip(weights, self._ops))
+        if self.is_slim:
+            if torch.sum(weights) == 0:
+                return 0.
+            else:
+                index = torch.argmax(weights).item()
+                return self._ops[index](x)
+        else:
+            return sum(w * op(x) for w, op in zip(weights, self._ops))
